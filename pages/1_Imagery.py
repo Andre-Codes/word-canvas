@@ -1,8 +1,8 @@
 import streamlit as st
 import os
 import base64
-from utils import gpt_utils as gpt
-from utils.web_helpers import generate_response, display_response
+from pages.utils import gpt_utils as gpt
+from pages.utils.web_helpers import generate_response, display_response
 
 
 def encode_image_prompt(image_file):
@@ -46,6 +46,8 @@ Do not add quotes around the extracted text, or any of your own comments.
 api_key = os.environ["OPENAI_API_KEY"]
 chat_engine = gpt.ChatEngine(api_key=api_key)
 
+st.title("Snap a Photo")
+st.subheader("See your text come to life...")
 # start_cam = st.button('Open Camera', key='start_cam')
 camera = st.empty()
 
@@ -63,7 +65,7 @@ if captured_image and st.session_state['extracted'] is None:
     prompt_addition = st.text_area(
         label="Additional context",
         help="Enter additional information as context for the written text.",
-        value=None
+        value=""
     )
 
     if extract.button('Read', key='extract', type='primary'):
@@ -86,7 +88,14 @@ if captured_image and st.session_state['extracted'] is None:
 
         # Update the extracted text to include additional context from text box
         if prompt_addition:
-            extracted = f"Initial context: {prompt_addition} \n\n {extracted}"
+            extracted = f"""
+            Initial context: {prompt_addition} \n\n {extracted} \n\n
+            """
+        # Append additional notes for image prompt
+        extracted = f"""
+        {extracted} \n\n Do not add text or words to the image.
+        """
+
         print(extracted)
         image_url = generate_response(
             chat_engine,
