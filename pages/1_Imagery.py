@@ -95,7 +95,7 @@ with tab1:
     if captured_image:
         # Display prompt box for additional context
 
-        if extract.button('Read', key='extract', type='primary'):
+        if extract.button('Read', key='extract'):
             prompt = encode_image_prompt(captured_image)
 
             try:
@@ -155,7 +155,7 @@ with tab1:
 with tab1:
     if st.session_state.extracted_edit_prompt and captured_image:
         submit = st.empty()
-        if submit.button('submit', type='primary'):
+        if submit.button('Imagine', type='primary'):
             image_url = generate_response(
                 chat_engine,
                 prompt=st.session_state.extracted_edit_prompt,
