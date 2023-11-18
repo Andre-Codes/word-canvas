@@ -4,12 +4,13 @@ import base64
 from pages.utils import gpt_utils as gpt
 from pages.utils.web_helpers import generate_response, display_response
 
-
 # Initialize 'extracted' in session state if not already present
 if 'extracted' not in st.session_state:
     st.session_state.extracted = None
-if 'extracted_edit' not in st.session_state:
-    st.session_state.extracted_edit = None
+if 'extracted_edit_prompt' not in st.session_state:
+    st.session_state.extracted_edit_prompt = None
+if 'image_url' not in st.session_state:
+    st.session_state.image_url = None
 if 'gen_images' not in st.session_state:
     st.session_state.gen_images = []
 
@@ -93,18 +94,7 @@ with tab1:
 
     if captured_image:
         # Display prompt box for additional context
-        prompt_context = st.text_input(
-            label="Image Context",
-            help="Enter additional information as context for the scanned text.",
-            value=""
-        )
-        #
-        prompt_restrictions = st.text_input(
-            label="Image Restrictions",
-            help="Enter anything you **do not** want included in the image.",
-            value=""
-        )
-        extracted_edit = st.empty()
+
         if extract.button('Read', key='extract', type='primary'):
             prompt = encode_image_prompt(captured_image)
 
@@ -118,39 +108,68 @@ with tab1:
 
                 st.session_state.extracted = extracted
 
-                st.subheader("I imagine this...")
-
-                extracted_edit.text_area(
-                    label="Extracted text",
-                    help=""
-                )
-
-                display_response(extracted, download=False)
-
-                st.subheader("...to look like this")
-
-                # Update the extracted text to include additional context from text box
-                if prompt_context:
-                    extracted_edit = f"Image context: {prompt_context} \n\n {extracted_edit} \n\n"
-
-                if prompt_restrictions:
-                    extracted_edit = f"Image Restrictions: {prompt_restrictions} \n\n {extracted_edit} \n\n"
-
-                # # Append additional notes for image prompt
-                # extracted = f"Restrictions: do not add text or words to the image. \n\n{extracted}"
-
-                print(extracted_edit)
-                image_url = generate_response(
-                    chat_engine,
-                    prompt=extracted_edit,
-                    role_context='text_to_image'
-                )
-
-                st.image(image_url)
-
-                st.session_state.gen_images.append((image_url, st.session_state.extracted))
+                # REMOVED DISPLAY RESPONSE
 
                 # Remove extract button after receiving response
                 extract.empty()
             except Exception as e:
                 st.error(e)
+
+with tab1:
+    if st.session_state.extracted and captured_image:
+        extracted_edit_box = st.empty()
+
+        prompt_context = st.text_input(
+            label="Image Context",
+            help="Enter additional information as context for the scanned text.",
+            value=""
+        )
+        #
+        prompt_restrictions = st.text_input(
+            label="Image Restrictions",
+            help="Enter anything you **do not** want included in the image.",
+            value=""
+        )
+
+        extracted_edit = extracted_edit_box.text_area(
+            label="Extracted text",
+            help="",
+            value=st.session_state.extracted
+        )
+
+        st.session_state.extracted_edit_display = extracted_edit
+
+        # Update the extracted text to include additional context from text box
+        if prompt_context:
+            extracted_edit = f"Image context: {prompt_context} \n\n {extracted_edit} \n\n"
+
+        if prompt_restrictions:
+            extracted_edit = f"Image Restrictions: {prompt_restrictions} \n\n {extracted_edit} \n\n"
+
+        st.session_state.extracted_edit_prompt = extracted_edit
+
+        # # Append additional notes for image prompt
+        # extracted = f"Restrictions: do not add text or words to the image. \n\n{extracted}"
+        print(st.session_state.extracted_edit_prompt)
+
+with tab1:
+    if st.session_state.extracted_edit_prompt and captured_image:
+        submit = st.empty()
+        if submit.button('submit', type='primary'):
+            image_url = generate_response(
+                chat_engine,
+                prompt=st.session_state.extracted_edit_prompt,
+                role_context='text_to_image',
+            )
+
+            st.session_state.image_url = image_url
+
+            st.subheader("I imagine this...")
+            display_response(st.session_state.extracted_edit_display, download=False)
+
+            st.subheader("...to look like this")
+            st.image(image_url)
+
+            st.session_state.gen_images.append((image_url, st.session_state.extracted_edit_display))
+            # clear widgets
+            submit.empty()
