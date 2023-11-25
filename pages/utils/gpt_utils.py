@@ -39,6 +39,19 @@ class ChatEngine:
 
     MD_TABLE_STYLE = "pipes"  # default format for markdown tables
 
+    MODEL_OPTIONS = {
+        'dall-e-3': {
+            'qualities': ['standard', 'hd'],
+            'sizes': ['1024x1024', '1024x1792', '1792x1024'],
+            'max_count': 1
+        },
+        'dall-e-2': {
+            'qualities': ['standard'],
+            'sizes': ['1024x1024'],
+            'max_count': 10
+        }
+    }
+
     def __init__(
             self,
             role_context=None,
@@ -207,15 +220,47 @@ class ChatEngine:
         except openai.APIError as e:
             raise e
 
-    def _image_api_call(self, text_prompt):
+    def _image_api_call(self, text_prompt, **kwargs):
+        # Extracting parameters with defaults
+        model = kwargs.get('image_model', 'dall-e-3')
+        count = kwargs.get('image_count', 1)
+        size = kwargs.get('image_size', "1024x1024")
+        quality = kwargs.get('image_q', "standard")
+        revised_prompt = kwargs.get('revised_prompt', False)
+
+        # Adjusting model for count
+        if count > 1 and model != 'dall-e-2':
+            model = 'dall-e-2'
+
+        # Validate and adjust size and quality
+        model_opts = ChatEngine.MODEL_OPTIONS[model]
+        if size not in model_opts['sizes']:
+            size = model_opts['sizes'][0]  # Default to first available size
+        if quality not in model_opts['qualities']:
+            quality = model_opts['qualities'][0]  # Default to first available quality
+
+        # Validate and adjust count
+        if count > model_opts['max_count']:
+            count = model_opts['max_count']
+
+        if not revised_prompt and model != 'dall-e-2':
+            preface = """
+            I NEED to test how the tool works with extremely simple prompts. 
+            DO NOT add any detail, just use it AS-IS:
+            
+            """
+        else:
+            preface = ""
         try:
             client = OpenAI()
             response = client.images.generate(
-                model='dall-e-3',
-                prompt=text_prompt,
-                n=1,
-                size="1024x1024"
+                model=model,
+                prompt=preface + text_prompt,
+                n=count,
+                size=size,
+                quality=quality
             )
+            print(f"model: {model}, preface: '{preface}', count: {count}, size: {size}, quality: {quality}")
             self.response = response
         except openai.APIConnectionError as e:
             raise e
@@ -331,15 +376,22 @@ class ChatEngine:
             self._text_api_call(**kwargs)
         elif response_type == 'image':
             prompt = self._handle_role_instructions(prompt)
-            self._image_api_call(text_prompt=prompt)
+            self._image_api_call(text_prompt=prompt, **kwargs)
         elif response_type == 'vision':
             self._vision_api_call(image_prompt=prompt, **kwargs)
         # Return finished response from OpenAI
-        if not raw_output and not self.stream:
+        if not raw_output and not self.stream:  # if raw and stream are False
             if response_type == 'text':
                 return self.response.choices[0].message.content
             elif response_type == 'image':
-                return self.response.data[0].url
+                # Extract URLs into a list of 1 or more
+                image_urls = [image.url for image in self.response.data]
+                # Extract revised prompts (only for dall-e-3) into list
+                # will be list of 'Nones' for older models
+                revised_prompts = [image.revised_prompt for image in self.response.data]
+                # If revised_prompt param is used return the urls and revisions
+                # revised_prompt = kwargs.get('revised_prompt', False)
+                return image_urls, revised_prompts
             elif response_type == 'vision':
                 return self.response.choices[0].message.content
 
