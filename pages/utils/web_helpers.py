@@ -1,5 +1,5 @@
 import streamlit as st
-import json
+import time
 
 
 ai_avatar = "/mount/src/code-tutor/web_app/pages/images/ct_logo_head.png"  # /mount/src/code-tutor/web_app/
@@ -10,9 +10,19 @@ def generate_response(app, prompt, role_context=None, **kwargs):
     if prompt is None:
         raise ValueError("No prompt provided.")
     spinner_text = kwargs.get('spinner_text', 'thinking')
+    image_count = kwargs.get('image_count', 1)
+    image_q = kwargs.get('image_q', 'standard')
+    revised_prompt = kwargs.get('revised_prompt', False)
     param_configs = {
-        'image_to_text': {'prompt': prompt, 'response_type': 'vision', 'raw_output': False},
-        'text_to_image': {'prompt': prompt, 'response_type': 'image', 'raw_output': False}
+        'image_to_text': {'prompt': prompt,
+                          'response_type': 'vision',
+                          'raw_output': False},
+        'text_to_image': {'prompt': prompt,
+                          'response_type': 'image',
+                          'image_q': image_q,
+                          'image_count': image_count,
+                          'revised_prompt': revised_prompt,
+                          'raw_output': False}
     }
     with st.spinner(f'...{spinner_text} :thought_balloon:'):
         try:
@@ -42,7 +52,7 @@ def create_download(response, role_name):
     )
 
 
-def display_response(response, streaming=False, download=True, role_name=None):
+def display_response(response, streaming=False, simulate_stream=False, download=True, role_name=None):
     markdown_placeholder = st.empty()
     collected_responses = []
 
@@ -53,9 +63,15 @@ def display_response(response, streaming=False, download=True, role_name=None):
                 if content_chunk:
                     collected_responses.append(content_chunk)
                     response_content = ''.join(collected_responses)
-                    markdown_placeholder.chat_message('ai', avatar=ai_avatar).markdown(f"{response_content}🖋️\n\n")
+                    markdown_placeholder.markdown(f"{response_content}🖋️\n\n")
             else:
-                markdown_placeholder.chat_message('ai', avatar=ai_avatar).markdown(response_content)
+                markdown_placeholder.markdown(response_content)
+    elif simulate_stream:
+        for chunk in response:
+            collected_responses.append(chunk)
+            response_content = ''.join(collected_responses)
+            markdown_placeholder.markdown(f"{response_content}\n\n")
+            time.sleep(0.02)
     else:
         response_content = response
         markdown_placeholder.markdown(response_content)
