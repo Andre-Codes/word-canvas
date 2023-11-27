@@ -9,8 +9,8 @@ import tempfile
 from pages.utils import gpt_utils as gpt
 from pages.utils.web_helpers import generate_response, display_response
 
-
 st.set_page_config(page_title="Word Canvas")
+st.image("utils/artsy_fibonacci.png")
 # Initialize 'extracted' in session state if not already present
 if 'extracted_text' not in st.session_state:
     st.session_state.extracted_text = None
@@ -217,7 +217,7 @@ def display_image_and_expander(column, image):
 
 
 def download_history():
-    zip_button_col, pdf_button_col, col3 = st.columns([3,3,2])
+    zip_button_col, pdf_button_col, col3 = st.columns([3, 3, 2])
     st.toast("Saving history...", icon="⌛")
     # Create zip and pdf files as byte objects
     zip_buffer = get_image_history_zip(st.session_state.gen_images)
@@ -252,7 +252,7 @@ def manage_history():
     # Display history in Tabs
     with tab2:
         art_style_list = [image[2] for image in st.session_state.gen_images]
-        style_filter, *cols, filter_count_col = st.columns([2,1,1])
+        style_filter, *cols, filter_count_col = st.columns([2, 1, 1])
         with style_filter:
             art_style_filter = st.multiselect(
                 ':orange[Style]',
@@ -261,7 +261,7 @@ def manage_history():
             )
 
         # Create columns for save button and nested download button columns
-        save_col1, save_col2, save_col3 = st.columns([2,2,3])
+        save_col1, save_col2, save_col3 = st.columns([2, 2, 3])
         with save_col1:
             if st.button("💾:blue[Save History]"):
                 download_history()
@@ -298,18 +298,28 @@ tab1, tab2 = st.tabs(["Capture", "History"])
 tab1.header("Capture Imagery", divider='rainbow')
 tab2.header("Imagery History", divider='rainbow')
 
+
+st.sidebar.markdown("https://givebutter.com/O7HXno")
+api_key_input = st.sidebar.empty()
+
+api_key = os.environ["OPENAI_API_KEY"] or st.secrets["OPENAI_API_KEY"]
+chat_engine = gpt.ChatEngine(api_key=api_key)
+
+chat_engine.api_key = api_key_input.text_input(
+    label="OpenAI API Key :key:",
+    type="password",
+    value='',
+    help="Entering your own key is optional. This app is completely free to use until rate limits are exceeded."
+) or chat_engine.api_key
+
+if st.session_state.gen_images:
+    manage_history()
+
 text_prompt = """
 Extract the text words from the following image.
 Do not add quotes around the extracted text, or add any of your own comments.
 If there is no text to extract, describe the image with detailed imagery.
 """
-
-api_key = os.environ["OPENAI_API_KEY"] or st.secrets["OPENAI_API_KEY"]
-chat_engine = gpt.ChatEngine(api_key=api_key)
-
-
-if st.session_state.gen_images:
-    manage_history()
 
 with tab1:
     # start_cam = st.button('Open Camera', key='start_cam')
@@ -338,8 +348,9 @@ with tab1:
     # has been cleared from previous image generation
     if captured_text and not st.session_state.extracted_text:
         extract_button = False
-        # Initialize columns
+        # Initialize columns and variables
         col1, col2, col3 = st.columns([1, 2, 1])
+        extracted_text = None
 
         with col2:
             extract = st.empty()
@@ -357,10 +368,21 @@ with tab1:
                             role_context='image_to_text',
                             spinner_text='Reading'
                         )
-
-                    st.session_state.extracted_text = extracted_text
                 except Exception as e:
-                    st.error(e)
+                    error_message = str(e)
+                    error_dict_str = error_message.split(' - ')[1]
+                    error_dict = eval(error_dict_str)
+                    error_message = error_dict['error']['message']
+                    if error_dict['error']['code'] in ('billing_hard_limit_reached', 'insufficient_quota'):
+                        st.error(icon='😪',
+                                 body=f"""**No more requests allowed**. 
+                                \n\n If you are using your own API 🔑 key, increase ⏫ your billing limit.
+                                Otherwise, try again later... (our wallets are tired)
+                            """)
+                    else:
+                        st.error(icon='⚠️', body=f"**Cannot read image**.\n\n {error_message}.")
+                if extracted_text:
+                    st.session_state.extracted_text = extracted_text
         else:
             st.session_state.extracted_text = captured_text
             # Remove extract button if a response was received and extracted text
@@ -404,7 +426,8 @@ with tab1:
             art_style = st.multiselect('Art Styles',
                                        options=sorted(art_styles + artist_names),
                                        placeholder='Choose a style (optional)',
-                                       format_func=lambda x: f"{x.title()} (artist)" if x in artist_names else x.title(),
+                                       format_func=lambda
+                                           x: f"{x.title()} (artist)" if x in artist_names else x.title(),
                                        help="Leave empty for the default style")
 
         with col2:
@@ -439,46 +462,64 @@ with tab1:
 with tab1:
     if extracted_edit_prompt and captured_text:
         st.divider()
-        # Initialize widgets and layout
+        # Initialize widgets and variables
         col1, col2, col3 = st.columns([1, 2, 1])
+        image_response = None
 
         with col2:
             submit = st.empty()
         if submit.button('💭Imagine', type='primary', use_container_width=True):
-            with col2:
-                image_response = generate_response(
-                    chat_engine,
-                    prompt=extracted_edit_prompt,
-                    role_context='text_to_image',
-                    spinner_text='Imagining',
-                    image_count=image_count,
-                    image_q=image_q,
-                    revised_prompt=revised_prompt  # returns a tuple of images, revised prompts
-                )
-                # print(f'edited prompt: {extracted_edit_prompt}')
-                # print(f'full response: {image_response}')
-                # print(f'image urls: {image_response[0]}')
-                # print(f'revised prompts: {image_response[1]}')
+            try:
+                with col2:
+                    image_response = generate_response(
+                        chat_engine,
+                        prompt=extracted_edit_prompt,
+                        role_context='text_to_image',
+                        spinner_text='Imagining',
+                        image_count=image_count,
+                        image_q=image_q,
+                        revised_prompt=revised_prompt  # returns a tuple of images, revised prompts
+                    )
+            except Exception as e:
+                error_message = str(e)
+                error_dict_str = error_message.split(' - ')[1]
+                error_dict = eval(error_dict_str)
+                error_message = error_dict['error']['message']
+                if error_dict['error']['code'] in ('billing_hard_limit_reached', 'insufficient_quota'):
+                    st.error(icon='😪',
+                             body=f"""**No more requests allowed**. 
+                        \n\n If you are using your own API 🔑 key, increase ⏫ your billing limit.
+                        Otherwise, try again later... (our wallets are tired)
+                    """)
+                else:
+                    st.error(icon='⚠️', body=f"**Cannot read image**.\n\n {error_message}.")
+            # print(f'edited prompt: {extracted_edit_prompt}')
+            # print(f'full response: {image_response}')
+            # print(f'image urls: {image_response[0]}')
+            # print(f'revised prompts: {image_response[1]}')
+
             submit.empty()
 
-            st.session_state.image_response = image_response[0]
+            if image_response:
+                st.session_state.image_response = image_response[0]
 
-            st.subheader("I imagine this...")
+                st.subheader("I imagine this...")
 
-            display_response(
-                st.session_state.extracted_edit_display,
-                download=False,
-                simulate_stream=False
-            )
+                display_response(
+                    st.session_state.extracted_edit_display,
+                    download=False,
+                    simulate_stream=False
+                )
 
-            st.subheader("...to look like this")
-            st.image(image_response[0])
+                st.subheader("...to look like this")
+                st.image(image_response[0])
 
-            # If revised prompt enabled store result in revised_prompt
-            # otherwise append False (N/A)
-            if revised_prompt:
-                revised_prompt = image_response[1][0]
+                # If revised prompt enabled store result in revised_prompt
+                # otherwise append False (N/A)
+                if revised_prompt:
+                    revised_prompt = image_response[1][0]
 
-            st.session_state.gen_images.insert(
-                0, (image_response[0], st.session_state.extracted_edit_display, art_style_str, art_format_str, revised_prompt)
-            )
+                st.session_state.gen_images.insert(
+                    0, (image_response[0], st.session_state.extracted_edit_display, art_style_str, art_format_str,
+                        revised_prompt)
+                )
