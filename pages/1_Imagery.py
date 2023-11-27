@@ -298,7 +298,7 @@ tab1.header("Capture Imagery", divider='rainbow')
 tab2.header("Imagery History", divider='rainbow')
 
 
-st.sidebar.markdown("https://givebutter.com/O7HXno")
+# st.sidebar.markdown("https://givebutter.com/O7HXno")
 api_key_input = st.sidebar.empty()
 
 api_key = os.environ["OPENAI_API_KEY"] or st.secrets["OPENAI_API_KEY"]
