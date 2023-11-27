@@ -10,7 +10,6 @@ from pages.utils import gpt_utils as gpt
 from pages.utils.web_helpers import generate_response, display_response
 
 st.set_page_config(page_title="Word Canvas")
-st.image("./word-canvas/pages/utils/artsy_fibonacci.png")
 # Initialize 'extracted' in session state if not already present
 if 'extracted_text' not in st.session_state:
     st.session_state.extracted_text = None
